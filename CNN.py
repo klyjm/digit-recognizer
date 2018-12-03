@@ -46,7 +46,6 @@ def train(filename):
     globalstep = tf.Variable(0, trainable=False)
 
 
-
 def datatest(filename):
     traindata = pd.read_csv(filename).as_matrix()
     imagedata = traindata.iloc[:, :].values
