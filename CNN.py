@@ -43,6 +43,7 @@ def train(filename):
     tf.add_to_collection('loss', tf.contrib.layers.l2_regularizer(0.0001)(fc2w))
     fc2b = tf.Variable(tf.constant(0.1, shape=[10]))
     lenet5y = tf.matmul(fc1, fc2w) + fc2b
+    globalstep = tf.Variable(0, trainable=False)
 
 
 
