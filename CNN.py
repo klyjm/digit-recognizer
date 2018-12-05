@@ -1,24 +1,25 @@
 import tensorflow as tf
 import pandas as pd
 import numpy as np
+import os
 
 
 def train(filename):
-    traindata = pd.read_csv(filename).as_matrix()
+    traindata = pd.read_csv(filename).values
     imagedata = traindata[:, 1:]
     imagedata = imagedata.astype(np.float)
+    imagedata = np.multiply(imagedata, 1.0 / 255)
     verifyimg = imagedata[40000:, :]
-    imagedata = imagedata[0:39999, :]
-    imagedata = np.multiply(imagedata, 1.0/255)
+    imagedata = imagedata[0:40000, :]
     labeldata = traindata[:, 0]
     verifylab = labeldata[40000:]
-    labeldata = labeldata[0:39999]
+    labeldata = labeldata[0:40000]
     onehotlabel = [[0 for i in range(10)] for i in range(len(labeldata))]
     for i in range(len(labeldata)):
         onehotlabel[i][labeldata[i]] = 1;
     onehotlabel = np.array(onehotlabel, dtype=np.uint8)
     batchsize = 100
-    x = tf.placeholder(tf.float32, [None, 784])
+    x = tf.placeholder(tf.float32, [None, 28, 28, 1])
     y = tf.placeholder(tf.float32, [None, 10])
     inputdata = tf.reshape(x, [-1, 28, 28, 1])
     conv1w = tf.Variable(tf.truncated_normal([5, 5, 1, 32], stddev=0.1))
@@ -54,16 +55,85 @@ def train(filename):
     trainop = tf.group(trainstep, varaveop)
     saver = tf.train.Saver()
     with tf.Session() as sess:
-        tf.initialize_all_variables().run()
         ckpt = tf.train.get_checkpoint_state('/ckpt/')
         if ckpt and ckpt.model_checkpoint_path:
             saver.restore(sess, ckpt.model_checkpoint_path)
-        for i in range(20):
+        else:
+            tf.initialize_all_variables().run()
+        for i in range(200):
             for j in range(400):
                 x1 = imagedata[j * batchsize:(j + 1) * batchsize]
+                x1 = np.reshape(x1, (100, 28, 28, 1))
                 y1 = onehotlabel[j * batchsize:(j + 1) * batchsize]
-                sess.run([trainop, loss, globalstep], feed_dict={x: x1, y: y1})
+                _, lossval, step = sess.run([trainop, loss, globalstep], feed_dict={x: x1, y: y1})
+            if i%20 == 0:
+                print(str(step))
+                print(str(lossval))
         saver.save(sess, '/ckpt/lenet5.ckpt')
+    onehotlabel = [[0 for i in range(10)] for i in range(len(verifylab))]
+    for i in range(len(verifylab)):
+        onehotlabel[i][verifylab[i]] = 1;
+    onehotlabel = np.array(onehotlabel, dtype=np.uint8)
+    correctpredict = tf.equal(tf.argmax(lenet5y, 1), tf.argmax(y, 1))
+    accuracy = tf.reduce_mean(tf.cast(correctpredict, tf.float32))
+    with tf.Session() as sess:
+        ckpt = tf.train.get_checkpoint_state('/ckpt/')
+        if ckpt and ckpt.model_checkpoint_path:
+            saver.restore(sess, ckpt.model_checkpoint_path)
+        verifyimg = np.reshape(verifyimg,(2000, 28, 28, 1))
+        accuracyrate = sess.run(accuracy, feed_dict={x: verifyimg, y: onehotlabel})
+        print(str(accuracyrate))
+
+
+
+def valid(filename):
+    traindata = pd.read_csv(filename).values
+    imagedata = traindata[:, 1:]
+    imagedata = imagedata.astype(np.float)
+    verifyimg = imagedata[40000:, :]
+    verifyimg = np.multiply(verifyimg, 1.0 / 255)
+    labeldata = traindata[:, 0]
+    verifylab = labeldata[40000:]
+    onehotlabel = [[0 for i in range(10)] for i in range(len(verifylab))]
+    for i in range(len(verifylab)):
+        onehotlabel[i][verifylab[i]] = 1;
+    onehotlabel = np.array(onehotlabel, dtype=np.uint8)
+    x = tf.placeholder(tf.float32, [None, 28, 28, 1])
+    y = tf.placeholder(tf.float32, [None, 10])
+    inputdata = tf.reshape(x, [-1, 28, 28, 1])
+    conv1w = tf.Variable(tf.truncated_normal([5, 5, 1, 32], stddev=0.1))
+    conv1b = tf.Variable(tf.constant(0.1, shape=[32]))
+    conv1 = tf.nn.conv2d(inputdata, conv1w, strides=[1, 1, 1, 1], padding='SAME')
+    relu1 = tf.nn.relu(tf.nn.bias_add(conv1, conv1b))
+    pool1 = tf.nn.max_pool(relu1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+    conv2w = tf.Variable(tf.truncated_normal([5, 5, 32, 64], stddev=0.1))
+    conv2b = tf.Variable(tf.constant(0.1, shape=[64]))
+    conv2 = tf.nn.conv2d(pool1, conv2w, strides=[1, 1, 1, 1], padding='SAME')
+    relu2 = tf.nn.relu(tf.nn.bias_add(conv2, conv2b))
+    pool2 = tf.nn.max_pool(relu2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+    poolshape = pool2.get_shape().as_list()
+    nodes = poolshape[1] * poolshape[2] * poolshape[3]
+    reshaped = tf.reshape(pool2, [-1, nodes])
+    fc1w = tf.Variable(tf.truncated_normal([nodes, 512], stddev=0.1))
+    fc1b = tf.Variable(tf.constant(0.1, shape=[512]))
+    fc1 = tf.nn.relu(tf.matmul(reshaped, fc1w) + fc1b)
+    fc1 = tf.nn.dropout(fc1, 0.5)
+    fc2w = tf.Variable(tf.truncated_normal([512, 10], stddev=0.1))
+    fc2b = tf.Variable(tf.constant(0.1, shape=[10]))
+    lenet5y = tf.matmul(fc1, fc2w) + fc2b
+    correctpredict = tf.equal(tf.argmax(lenet5y, 1), tf.argmax(y, 1))
+    accuracy = tf.reduce_mean(tf.cast(correctpredict, tf.float32))
+    varace = tf.train.ExponentialMovingAverage(0.99)
+    varrestore = varace.variables_to_restore()
+    saver = tf.train.Saver(varrestore)
+    with tf.Session() as sess:
+        ckpt = tf.train.get_checkpoint_state('/ckpt/')
+        if ckpt and ckpt.model_checkpoint_path:
+            saver.restore(sess, ckpt.model_checkpoint_path)
+        verifyimg = np.reshape(verifyimg, (2000, 28, 28, 1))
+        accuracyrate = sess.run(accuracy, feed_dict={x: verifyimg, y: onehotlabel})
+        print(str(accuracyrate))
+
 
 
 def datatest(filename):
@@ -73,16 +143,20 @@ def datatest(filename):
     imagedata = np.multiply(imagedata, 1.0 / 255)
 
 
+if not os.path.exists('/ckpt/'):
+    os.mkdir('/ckpt/')
 inputstr = input('请输入命令：\n')
 while 1:
     if inputstr == 'exit':
         exit()
     inputstr = inputstr.strip().split()
-    if len(inputstr) != 2 :
+    if len(inputstr) != 2:
         inputstr = input('非法命令！请重新输入命令：\n')
         continue
     if inputstr[0] == 'train':
         train(inputstr[1])
     if inputstr[0] == 'test':
         datatest(inputstr[1])
+    if inputstr[0] == 'valid':
+        valid(inputstr[1])
     inputstr = input('请输入命令：\n')
