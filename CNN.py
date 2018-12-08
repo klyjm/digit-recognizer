@@ -5,6 +5,7 @@ import os
 
 
 def train(filename):
+    y = tf.placeholder(tf.float32, [None, 10])
     traindata = pd.read_csv(filename).values
     imagedata = traindata[:, 1:]
     imagedata = imagedata.astype(np.float)
@@ -25,13 +26,13 @@ def train(filename):
     crossentropy = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=lenet5y)
     crossentrogymean = tf.reduce_mean(crossentropy)
     loss = crossentrogymean + tf.add_n(tf.get_collection('loss'))
-    learnrate = tf.train.exponential_decay(0.1, globalstep, 400, 0.99)
+    learnrate = tf.train.exponential_decay(0.001, globalstep, 400, 0.99)
     #trainop = tf.train.GradientDescentOptimizer(learnrate).minimize(loss, global_step=globalstep)
     trainstep = tf.train.GradientDescentOptimizer(learnrate).minimize(loss, global_step=globalstep)
     #trainstep = tf.train.AdadeltaOptimizer(0.01).minimize(loss, global_step=globalstep)
     #trainstep = tf.train.AdamOptimizer(0.01).minimize(loss, global_step=globalstep)
     trainop = tf.group(trainstep, varaveop)
-    saver = tf.train.Saver(max_to_keep=400)
+    saver = tf.train.Saver(max_to_keep=1000)
     label = [[0 for i in range(10)] for i in range(len(verifylab))]
     for i in range(len(verifylab)):
         label[i][verifylab[i]] = 1
@@ -45,8 +46,8 @@ def train(filename):
         if ckpt and ckpt.model_checkpoint_path:
             saver.restore(sess, ckpt.model_checkpoint_path)
         else:
-            tf.initialize_all_variables().run()
-        for i in range(400):
+            tf.global_variables_initializer().run()
+        for i in range(1000):
             for j in range(400):
                 x1 = imagedata[j * batchsize:(j + 1) * batchsize]
                 x1 = np.reshape(x1, (100, 28, 28, 1))
@@ -59,9 +60,6 @@ def train(filename):
                 max = accuracyrate
                 maxi = i
             print(str(accuracyrate)+str(i))
-            # if i % 20 == 0:
-            #     print(str(step))
-            #     print(str(lossval))
         print(str(max))
         print(str(maxi))
         # saver.save(sess, '/ckpt/lenet5.ckpt')
@@ -74,43 +72,42 @@ def train(filename):
     #     print(str(accuracyrate))
 
 
-def valid(filename):
-    traindata = pd.read_csv(filename).values
-    imagedata = traindata[:, 1:]
-    imagedata = imagedata.astype(np.float)
-    verifyimg = imagedata[40000:, :]
-    verifyimg = np.multiply(verifyimg, 1.0 / 255)
-    labeldata = traindata[:, 0]
-    verifylab = labeldata[40000:]
-    onehotlabel = [[0 for i in range(10)] for i in range(len(verifylab))]
-    for i in range(len(verifylab)):
-        onehotlabel[i][verifylab[i]] = 1
-    onehotlabel = np.array(onehotlabel, dtype=np.uint8)
-    correctpredict = tf.equal(tf.argmax(lenet5y, 1), tf.argmax(y, 1))
-    accuracy = tf.reduce_mean(tf.cast(correctpredict, tf.float32))
-    varace = tf.train.ExponentialMovingAverage(0.99)
-    varrestore = varace.variables_to_restore()
-    saver = tf.train.Saver(varrestore)
-    with tf.Session() as sess:
-        ckpt = tf.train.get_checkpoint_state('/ckpt/')
-        if ckpt and ckpt.model_checkpoint_path:
-            saver.restore(sess, ckpt.model_checkpoint_path)
-        verifyimg = np.reshape(verifyimg, (2000, 28, 28, 1))
-        accuracyrate = sess.run(accuracy, feed_dict={x: verifyimg, y: onehotlabel})
-        print(str(accuracyrate))
-
-
 def datatest(filename):
-    traindata = pd.read_csv(filename).as_matrix()
-    imagedata = traindata.iloc[:, :].values
-    imagedata = imagedata.astype(np.float)
+    testdata = pd.read_csv(filename).values
+    imagedata = testdata.astype(np.float)
     imagedata = np.multiply(imagedata, 1.0 / 255)
+    # batchsize = 100
+    # globalstep = tf.Variable(0, trainable=False)
+    # varave = tf.train.ExponentialMovingAverage(0.99, globalstep)
+    # varaveop = varave.apply(tf.trainable_variables())
+    # crossentropy = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=lenet5y)
+    # crossentrogymean = tf.reduce_mean(crossentropy)
+    # loss = crossentrogymean + tf.add_n(tf.get_collection('loss'))
+    # learnrate = tf.train.exponential_decay(0.01, globalstep, 400, 0.99)
+    # trainstep = tf.train.GradientDescentOptimizer(learnrate).minimize(loss, global_step=globalstep)
+    # trainop = tf.group(trainstep, varaveop)
+    y = tf.nn.softmax(lenet5y)
+    saver = tf.train.Saver()
+    yout = tf.arg_max(y, 1)
+    with tf.Session() as sess:
+        saver.restore(sess, '/ckpt/lenet5113.ckpt')
+        n = int(len(imagedata) / 1000)
+        data = [0] * len(imagedata)
+        k = 0
+        for i in range(n):
+            x1 = imagedata[i * 1000:(i + 1) * 1000]
+            x1 = np.reshape(x1, (1000, 28, 28, 1))
+            result = sess.run(yout, feed_dict={x: x1, droprate: 1.0})
+            for j in range(1000):
+                data[k] = result[j]
+                k += 1
+        index = list(range(1, len(data) + 1))
+        pd.DataFrame(data=data, index=index, columns=['Label']).to_csv('result.csv')
 
 
 if not os.path.exists('/ckpt/'):
     os.mkdir('/ckpt/')
 x = tf.placeholder(tf.float32, [None, 28, 28, 1])
-y = tf.placeholder(tf.float32, [None, 10])
 droprate = tf.placeholder(tf.float32)
 inputdata = tf.reshape(x, [-1, 28, 28, 1])
 conv1w = tf.Variable(tf.truncated_normal([3, 3, 1, 32], stddev=0.1))
@@ -152,6 +149,4 @@ while 1:
         train(inputstr[1])
     if inputstr[0] == 'test':
         datatest(inputstr[1])
-    if inputstr[0] == 'valid':
-        valid(inputstr[1])
     inputstr = input('请输入命令：\n')
