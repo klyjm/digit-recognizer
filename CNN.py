@@ -26,13 +26,13 @@ def train(filename):
     crossentropy = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=lenet5y)
     crossentrogymean = tf.reduce_mean(crossentropy)
     loss = crossentrogymean + tf.add_n(tf.get_collection('loss'))
-    learnrate = tf.train.exponential_decay(0.001, globalstep, 400, 0.99)
+    learnrate = tf.train.exponential_decay(0.01, globalstep, 160000, 0.99)
     #trainop = tf.train.GradientDescentOptimizer(learnrate).minimize(loss, global_step=globalstep)
     trainstep = tf.train.GradientDescentOptimizer(learnrate).minimize(loss, global_step=globalstep)
     #trainstep = tf.train.AdadeltaOptimizer(0.01).minimize(loss, global_step=globalstep)
     #trainstep = tf.train.AdamOptimizer(0.01).minimize(loss, global_step=globalstep)
     trainop = tf.group(trainstep, varaveop)
-    saver = tf.train.Saver(max_to_keep=1000)
+    saver = tf.train.Saver(max_to_keep=400)
     label = [[0 for i in range(10)] for i in range(len(verifylab))]
     for i in range(len(verifylab)):
         label[i][verifylab[i]] = 1
@@ -47,7 +47,7 @@ def train(filename):
             saver.restore(sess, ckpt.model_checkpoint_path)
         else:
             tf.global_variables_initializer().run()
-        for i in range(1000):
+        for i in range(400):
             for j in range(400):
                 x1 = imagedata[j * batchsize:(j + 1) * batchsize]
                 x1 = np.reshape(x1, (100, 28, 28, 1))
@@ -76,21 +76,11 @@ def datatest(filename):
     testdata = pd.read_csv(filename).values
     imagedata = testdata.astype(np.float)
     imagedata = np.multiply(imagedata, 1.0 / 255)
-    # batchsize = 100
-    # globalstep = tf.Variable(0, trainable=False)
-    # varave = tf.train.ExponentialMovingAverage(0.99, globalstep)
-    # varaveop = varave.apply(tf.trainable_variables())
-    # crossentropy = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=lenet5y)
-    # crossentrogymean = tf.reduce_mean(crossentropy)
-    # loss = crossentrogymean + tf.add_n(tf.get_collection('loss'))
-    # learnrate = tf.train.exponential_decay(0.01, globalstep, 400, 0.99)
-    # trainstep = tf.train.GradientDescentOptimizer(learnrate).minimize(loss, global_step=globalstep)
-    # trainop = tf.group(trainstep, varaveop)
     y = tf.nn.softmax(lenet5y)
     saver = tf.train.Saver()
     yout = tf.arg_max(y, 1)
     with tf.Session() as sess:
-        saver.restore(sess, '/ckpt/lenet5113.ckpt')
+        saver.restore(sess, '/ckpt/lenet5220.ckpt')
         n = int(len(imagedata) / 1000)
         data = [0] * len(imagedata)
         k = 0
