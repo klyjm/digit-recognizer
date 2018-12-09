@@ -23,8 +23,7 @@ def train(filename):
     globalstep = tf.Variable(0, trainable=False)
     varave = tf.train.ExponentialMovingAverage(0.99, globalstep)
     varaveop = varave.apply(tf.trainable_variables())
-    crossentropy = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=lenet5y)
-    crossentrogymean = tf.reduce_mean(crossentropy)
+    crossentrogymean = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=lenet5y))
     loss = crossentrogymean + tf.add_n(tf.get_collection('loss'))
     learnrate = tf.train.exponential_decay(0.01, globalstep, 160000, 0.99)
     #trainop = tf.train.GradientDescentOptimizer(learnrate).minimize(loss, global_step=globalstep)
@@ -140,3 +139,4 @@ while 1:
     if inputstr[0] == 'test':
         datatest(inputstr[1])
     inputstr = input('请输入命令：\n')
+tf.reset_default_graph()
