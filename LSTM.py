@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow.contrib as contrib
 import pandas as pd
 import numpy as np
 import os
@@ -22,42 +23,47 @@ def train(filename):
     for i in range(len(verifylab)):
         label[i][verifylab[i]] = 1
     label = np.array(label, dtype=np.uint8)
-    ize = 100
+    size = 100
     x = tf.placeholder(tf.float32, [None, 28, 28])
     y = tf.placeholder(tf.float32, [None, 10])
-    batchsize = tf.placeholder(tf.int32)
-    droprate = tf.placeholder(tf.float32)
-    weight = tf.Variable(tf.truncated_normal([64, 10], stddev=0.1))
+    batchsize = tf.placeholder(tf.int32, [])
+    droprate = tf.placeholder(tf.float32, [])
+    weight = tf.Variable(tf.truncated_normal([128, 10], stddev=0.1))
     bias = tf.Variable(tf.constant(0.1, shape=[10]))
     hidelayer = []
-    for i in range(4):
-        tempcell = tf.nn.rnn_cell.BasicLSTMCell(64)
+    for i in range(2):
+        tempcell = tf.nn.rnn_cell.BasicLSTMCell(256)
+        #tempcell = contrib.cudnn_rnn.CudnnCompatibleLSTMCell(64)
         tempcell = tf.nn.rnn_cell.DropoutWrapper(tempcell, output_keep_prob=droprate)
         hidelayer.append(tempcell)
     lstmcells = tf.nn.rnn_cell.MultiRNNCell(hidelayer)
     initstate = lstmcells.zero_state(batchsize, dtype=tf.float32)
+    # lstm = contrib.cudnn_rnn.CudnnLSTM(4, 64, dtype=tf.float32)
+    # output, (_, _) = lstm(x)
     output, _ = tf.nn.dynamic_rnn(lstmcells, x, initial_state=initstate, dtype=tf.float32, time_major=False)
-    lstmy = tf.nn.softmax(tf.matmul(output[:, 1, :], weight) + bias)
+    lstmy = tf.nn.softmax(tf.matmul(output[:, -1, :], weight) + bias)
     loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=lstmy, labels=y))
     trainop = tf.train.AdadeltaOptimizer(0.1).minimize(loss)
     correctpredict = tf.equal(tf.argmax(lstmy, 1), tf.argmax(y, 1))
     accuracy = tf.reduce_mean(tf.cast(correctpredict, tf.float32))
-    saver = tf.train.Saver(max_to_keep=400)
+    saver = tf.train.Saver(max_to_keep=500)
     with tf.Session() as sess:
+        max = 0.0
+        maxi = 0
         tf.global_variables_initializer().run()
-        for i in range(400):
+        for i in range(500):
             for j in range(400):
                 x1 = imagedata[j * size:(j + 1) * size]
-                x1 = np.reshape(x1, (100, 28, 28))
+                x1 = np.reshape(x1, (size, 28, 28))
                 y1 = onehotlabel[j * size:(j + 1) * size]
                 _, lossval = sess.run([trainop, loss], feed_dict={x: x1, y: y1, batchsize: size, droprate: 0.5})
-            saver.save(sess, '/ckpt/lstm/lstm'+str(i)+'.ckpt')
+            saver.save(sess, '/ckpt/lstm/lstm' + str(i) + '.ckpt')
             verifyimg = np.reshape(verifyimg, (2000, 28, 28))
             accuracyrate = sess.run(accuracy, feed_dict={x: verifyimg, y: label, batchsize: 2000, droprate: 1.0})
             if accuracyrate > max:
                 max = accuracyrate
                 maxi = i
-            print(str(accuracyrate)+str(i))
+            print(str(accuracyrate) + str(i))
         print(str(max))
         print(str(maxi))
 
@@ -91,7 +97,7 @@ def datatest(filename):
         for i in range(n):
             x1 = imagedata[i * 1000:(i + 1) * 1000]
             x1 = np.reshape(x1, (1000, 28, 28))
-            result = sess.run(yout, feed_dict={x: x1, batchsize:1000, droprate: 1.0})
+            result = sess.run(yout, feed_dict={x: x1, batchsize: 1000, droprate: 1.0})
             for j in range(1000):
                 data[k] = result[j]
                 k += 1
