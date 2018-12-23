@@ -70,6 +70,7 @@ def train(filename):
     #     verifyimg = np.reshape(verifyimg, (2000, 28, 28, 1))
     #     accuracyrate = sess.run(accuracy, feed_dict={x: verifyimg, y: label})
     #     print(str(accuracyrate))
+    tf.reset_default_graph()
 
 
 def datatest(filename):
@@ -93,6 +94,7 @@ def datatest(filename):
                 k += 1
         index = list(range(1, len(data) + 1))
         pd.DataFrame(data=data, index=index, columns=['Label']).to_csv('result.csv')
+    tf.reset_default_graph()
 
 
 if not os.path.exists('/ckpt/'):

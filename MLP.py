@@ -112,6 +112,7 @@ def datatest(filename):
                 k += 1
         index = list(range(1, len(data) + 1))
         pd.DataFrame(data=data, index=index, columns=['Label']).to_csv('result.csv')
+    tf.reset_default_graph()
 
 
 if not os.path.exists('/ckpt/mlp/'):

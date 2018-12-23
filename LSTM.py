@@ -70,6 +70,7 @@ def train(filename):
             print(str(accuracyrate) + str(i))
         print(str(max))
         print(str(maxi))
+    tf.reset_default_graph()
 
 
 def datatest(filename):
@@ -107,6 +108,7 @@ def datatest(filename):
                 k += 1
         index = list(range(1, len(data) + 1))
         pd.DataFrame(data=data, index=index, columns=['Label']).to_csv('result.csv')
+    tf.reset_default_graph()
 
 
 if not os.path.exists('/ckpt/lstm/'):
