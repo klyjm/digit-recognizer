@@ -3,6 +3,7 @@ import tensorflow.contrib as contrib
 import pandas as pd
 import numpy as np
 import os
+import time
 
 
 def train(filename):
@@ -28,11 +29,11 @@ def train(filename):
     y = tf.placeholder(tf.float32, [None, 10])
     batchsize = tf.placeholder(tf.int32, [])
     droprate = tf.placeholder(tf.float32, [])
-    weight = tf.Variable(tf.truncated_normal([128, 10], stddev=0.1))
+    weight = tf.Variable(tf.truncated_normal([512, 10], stddev=0.1))
     bias = tf.Variable(tf.constant(0.1, shape=[10]))
     hidelayer = []
-    for i in range(2):
-        tempcell = tf.nn.rnn_cell.BasicLSTMCell(256)
+    for i in range(3):
+        tempcell = tf.nn.rnn_cell.BasicLSTMCell(512)
         #tempcell = contrib.cudnn_rnn.CudnnCompatibleLSTMCell(64)
         tempcell = tf.nn.rnn_cell.DropoutWrapper(tempcell, output_keep_prob=droprate)
         hidelayer.append(tempcell)
@@ -43,15 +44,18 @@ def train(filename):
     output, _ = tf.nn.dynamic_rnn(lstmcells, x, initial_state=initstate, dtype=tf.float32, time_major=False)
     lstmy = tf.nn.softmax(tf.matmul(output[:, -1, :], weight) + bias)
     loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=lstmy, labels=y))
-    trainop = tf.train.AdadeltaOptimizer(0.1).minimize(loss)
+    trainop = tf.train.AdadeltaOptimizer(0.01).minimize(loss)
     correctpredict = tf.equal(tf.argmax(lstmy, 1), tf.argmax(y, 1))
     accuracy = tf.reduce_mean(tf.cast(correctpredict, tf.float32))
-    saver = tf.train.Saver(max_to_keep=500)
-    with tf.Session() as sess:
+    saver = tf.train.Saver(max_to_keep=1500)
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    config.gpu_options.per_process_gpu_memory_fraction = 0.3
+    with tf.Session(config=config) as sess:
         max = 0.0
         maxi = 0
         tf.global_variables_initializer().run()
-        for i in range(500):
+        for i in range(2000):
             for j in range(400):
                 x1 = imagedata[j * size:(j + 1) * size]
                 x1 = np.reshape(x1, (size, 28, 28))

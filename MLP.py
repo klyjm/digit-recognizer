@@ -2,6 +2,7 @@ import tensorflow as tf
 import pandas as pd
 import numpy as np
 import os
+import time
 
 
 def train(filename):
@@ -22,16 +23,17 @@ def train(filename):
     for i in range(len(verifylab)):
         label[i][verifylab[i]] = 1
     label = np.array(label, dtype=np.uint8)
+    batchsize = 100
     x = tf.placeholder(tf.float32, [None, 784])
     y = tf.placeholder(tf.float32, [None, 10])
     droprate = tf.placeholder(tf.float32, [])
-    w1 = tf.Variable(tf.truncated_normal([784, 300], stddev=0.1))
-    b1 = tf.Variable(tf.zeros([300]))
-    w2 = tf.Variable(tf.truncated_normal([300, 100], stddev=0.1))
-    b2 = tf.Variable(tf.zeros([100]))
-    w3 = tf.Variable(tf.truncated_normal([100, 30], stddev=0.1))
-    b3 = tf.Variable(tf.zeros([30]))
-    w4 = tf.Variable(tf.zeros([30, 10]))
+    w1 = tf.Variable(tf.truncated_normal([784, 400], stddev=0.1))
+    b1 = tf.Variable(tf.zeros([400]))
+    w2 = tf.Variable(tf.truncated_normal([400, 200], stddev=0.1))
+    b2 = tf.Variable(tf.zeros([200]))
+    w3 = tf.Variable(tf.truncated_normal([200, 40], stddev=0.1))
+    b3 = tf.Variable(tf.zeros([40]))
+    w4 = tf.Variable(tf.zeros([40, 10]))
     b4 = tf.Variable(tf.zeros([10]))
     hy1 = tf.nn.relu(tf.matmul(x, w1) + b1)
     hy1 = tf.nn.dropout(hy1, droprate)
@@ -42,26 +44,26 @@ def train(filename):
     mlpy = tf.nn.softmax(tf.matmul(hy3, w4) + b4)
     loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=mlpy))
     trainop = tf.train.AdadeltaOptimizer(0.1).minimize(loss)
-    saver = tf.train.Saver(max_to_keep=400)
+    saver = tf.train.Saver(max_to_keep=2000)
     label = [[0 for i in range(10)] for i in range(len(verifylab))]
     for i in range(len(verifylab)):
         label[i][verifylab[i]] = 1
     label = np.array(label, dtype=np.uint8)
-    correctpredict = tf.equal(tf.argmax(lenet5y, 1), tf.argmax(y, 1))
+    correctpredict = tf.equal(tf.argmax(mlpy, 1), tf.argmax(y, 1))
     accuracy = tf.reduce_mean(tf.cast(correctpredict, tf.float32))
-    with tf.Session() as sess:
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    config.gpu_options.per_process_gpu_memory_fraction = 0.3
+    with tf.Session(config=config) as sess:
         max = 0.0
         maxi = 0
-        ckpt = tf.train.get_checkpoint_state('/ckpt/mlp/')
-        if ckpt and ckpt.model_checkpoint_path:
-            saver.restore(sess, ckpt.model_checkpoint_path)
-        else:
-            tf.global_variables_initializer().run()
-        for i in range(400):
+        tf.global_variables_initializer().run()
+        for i in range(2000):
             for j in range(400):
                 x1 = imagedata[j * batchsize:(j + 1) * batchsize]
                 y1 = onehotlabel[j * batchsize:(j + 1) * batchsize]
-                _, lossval, step = sess.run([trainop, loss, globalstep], feed_dict={x: x1, y: y1, droprate: 0.5})
+                _, lossval= sess.run([trainop, loss], feed_dict={x: x1, y: y1, droprate: 0.7})
+                x1 = imagedata[j * batchsize:(j + 1) * batchsize]
             saver.save(sess, '/ckpt/mlp/mlp' + str(i) + '.ckpt')
             accuracyrate = sess.run(accuracy, feed_dict={x: verifyimg, y: label, droprate: 1.0})
             if accuracyrate > max:

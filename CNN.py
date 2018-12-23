@@ -39,6 +39,7 @@ def train(filename):
     correctpredict = tf.equal(tf.argmax(lenet5y, 1), tf.argmax(y, 1))
     accuracy = tf.reduce_mean(tf.cast(correctpredict, tf.float32))
     with tf.Session() as sess:
+        writer = tf.summary.FileWriter("/ckpt/", sess.graph)
         max = 0.0
         maxi = 0
         ckpt = tf.train.get_checkpoint_state('/ckpt/')
